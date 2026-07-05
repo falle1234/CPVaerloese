@@ -1,0 +1,19 @@
+# Copy this file to config/ddclient.conf and fill in the real values.
+# config/ddclient.conf is gitignored since it holds your API token.
+
+daemon=300
+syslog=yes
+ssl=yes
+
+# Detect the public IP via an external checker (needed behind NAT).
+use=web
+web=https://checkip.amazonaws.com/
+
+protocol=cloudflare
+zone=yourdomain.dk
+login=token
+password='REPLACE_WITH_CLOUDFLARE_API_TOKEN'
+ttl=1
+proxied=no
+
+git.yourdomain.dk
