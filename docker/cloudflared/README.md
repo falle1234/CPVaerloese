@@ -6,46 +6,79 @@ can't work at all for you. A Cloudflare Tunnel avoids the problem entirely:
 `cloudflared` makes an *outbound* connection from the Pi to Cloudflare's
 edge, so no inbound ports or public IP are needed.
 
-## Setup
+This uses a **locally-managed tunnel** (a `config.yml` read directly by
+`cloudflared`) rather than the dashboard-managed kind, so origin settings
+like `originServerName` (needed for end-to-end TLS to Nginx Proxy Manager)
+are plain, versionable YAML instead of hunting through a dashboard UI that
+keeps changing shape.
 
-1. In the [Cloudflare Zero Trust dashboard](https://one.dash.cloudflare.com/)
-   → **Networks → Tunnels → Create a tunnel** → choose **Cloudflared** →
-   name it (e.g. `raspberry-pi`).
+## One-time setup (needs a browser — run on your own machine, not the Pi)
 
-2. On the install-command step, it shows something like:
+1. Install `cloudflared` locally (e.g. `brew install cloudflared`, or see
+   [Cloudflare's install docs](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)).
+
+2. Authenticate against your Cloudflare account:
    ```
-   docker run cloudflare/cloudflared:latest tunnel --no-autoupdate run --token eyJhIjoi...
+   cloudflared tunnel login
    ```
-   Copy just the token value (after `--token`) into `.env`:
+   This opens a browser, has you pick the zone (`yourdomain.dk`), and saves
+   a cert to `~/.cloudflared/cert.pem`.
+
+3. Create the tunnel:
    ```
-   cp .env.example .env
-   # paste the token into TUNNEL_TOKEN=
+   cloudflared tunnel create raspberry-pi
+   ```
+   This prints a **Tunnel ID** and writes a credentials file to
+   `~/.cloudflared/<TUNNEL_ID>.json`.
+
+4. Point DNS at the tunnel:
+   ```
+   cloudflared tunnel route dns raspberry-pi git.yourdomain.dk
+   ```
+   This creates the CNAME record automatically — no manual DNS record or
+   `ddclient` needed for this hostname.
+
+5. Copy the credentials file to the Pi, into this folder's `config/`
+   directory (it's gitignored — never commit it):
+   ```
+   scp ~/.cloudflared/<TUNNEL_ID>.json pi@<pi-ip>:~/CPVaerloese/docker/cloudflared/config/
    ```
 
-3. Still in the tunnel setup wizard, go to **Public Hostname** and add:
-   - Subdomain/domain: `git.yourdomain.dk`
-   - Service type: `HTTP`
-   - URL: `npm:80`
+## Configure and run (on the Pi)
 
-   `npm:80` works because `cloudflared` joins the same `proxy` Docker
-   network as Nginx Proxy Manager and reaches it by container name.
-   Cloudflare automatically creates the DNS record for this hostname (a
-   CNAME to the tunnel) — no manual DNS record or `ddclient` needed for it.
+1. Copy the example config:
+   ```
+   cp config/config.yml.example config/config.yml
+   ```
 
-4. Create the shared network if it doesn't exist yet, and start the tunnel:
+2. Edit `config/config.yml`:
+   - `tunnel` → the Tunnel ID from step 3 above
+   - `credentials-file` → `/etc/cloudflared/<TUNNEL_ID>.json` (matching the
+     file you copied over)
+   - `hostname` / `originServerName` → your actual domain
+
+3. Create the shared network if it doesn't exist yet, and start the tunnel:
    ```
    docker network create proxy   # skip if it already exists
    docker compose up -d
    ```
 
-5. In the Cloudflare dashboard → **SSL/TLS → Overview**, set the encryption
-   mode to **Full (strict)**. This makes Cloudflare validate NPM's own
-   Let's Encrypt certificate (from the DNS-01 setup in `docker/proxy/`) at
-   the tunnel endpoint, so traffic stays encrypted all the way from the
-   visitor's browser to NPM, not just to Cloudflare's edge.
+4. Check it connected:
+   ```
+   docker compose logs -f cloudflared
+   ```
 
-6. Remove the port 80/443 forwarding rules on your router — they're no
-   longer used (and wouldn't have worked under CGNAT anyway).
+This config uses `https://npm:443` with `originServerName` set, so
+`cloudflared` sends the correct SNI and NPM serves its real Let's Encrypt
+certificate — traffic stays encrypted all the way from the visitor's
+browser to NPM, not just to Cloudflare's edge. In the Cloudflare dashboard
+under **SSL/TLS**, set the encryption mode to **Full (strict)** to enforce
+this end-to-end.
+
+If you'd rather skip TLS on this internal hop entirely (it's already inside
+the Pi's private Docker network), change the ingress rule to
+`service: http://npm:80` and drop the `originRequest` block — simpler, and
+still fine security-wise for a home setup.
 
 ## Git-over-SSH no longer works the same way
 
