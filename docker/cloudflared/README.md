@@ -18,25 +18,27 @@ keeps changing shape.
 you open on any device (phone/laptop) to authorize, then the command on the
 Pi picks it up. Run these straight from the `cloudflare/cloudflared` image,
 mounting a scratch directory so the generated cert/credentials persist
-after each container exits:
+after each container exits. `--user root` avoids a permission-denied error
+writing to the mount — the image's default non-root user has a fixed UID
+that won't match the host directory's ownership:
 
 1. ```
    mkdir -p ~/cloudflared-setup
-   docker run -it -v ~/cloudflared-setup:/home/nonroot/.cloudflared cloudflare/cloudflared:latest tunnel login
+   docker run -it --user root -v ~/cloudflared-setup:/home/nonroot/.cloudflared cloudflare/cloudflared:latest tunnel login
    ```
    Open the printed URL, pick the zone (`yourdomain.dk`), and authorize. This
    saves a cert to `~/cloudflared-setup/cert.pem`.
 
 2. Create the tunnel:
    ```
-   docker run -it -v ~/cloudflared-setup:/home/nonroot/.cloudflared cloudflare/cloudflared:latest tunnel create raspberry-pi
+   docker run -it --user root -v ~/cloudflared-setup:/home/nonroot/.cloudflared cloudflare/cloudflared:latest tunnel create raspberry-pi
    ```
    This prints a **Tunnel ID** and writes a credentials file to
    `~/cloudflared-setup/<TUNNEL_ID>.json`.
 
 3. Point DNS at the tunnel:
    ```
-   docker run -it -v ~/cloudflared-setup:/home/nonroot/.cloudflared cloudflare/cloudflared:latest tunnel route dns raspberry-pi git.yourdomain.dk
+   docker run -it --user root -v ~/cloudflared-setup:/home/nonroot/.cloudflared cloudflare/cloudflared:latest tunnel route dns raspberry-pi git.yourdomain.dk
    ```
    This creates the CNAME record automatically — no manual DNS record or
    `ddclient` needed for this hostname.
