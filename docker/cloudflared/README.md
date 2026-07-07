@@ -22,21 +22,21 @@ after each container exits:
 
 1. ```
    mkdir -p ~/cloudflared-setup
-   docker run -it -v ~/cloudflared-setup:/root/.cloudflared cloudflare/cloudflared:latest tunnel login
+   docker run -it -v ~/cloudflared-setup:/home/nonroot/.cloudflared cloudflare/cloudflared:latest tunnel login
    ```
    Open the printed URL, pick the zone (`yourdomain.dk`), and authorize. This
    saves a cert to `~/cloudflared-setup/cert.pem`.
 
 2. Create the tunnel:
    ```
-   docker run -it -v ~/cloudflared-setup:/root/.cloudflared cloudflare/cloudflared:latest tunnel create raspberry-pi
+   docker run -it -v ~/cloudflared-setup:/home/nonroot/.cloudflared cloudflare/cloudflared:latest tunnel create raspberry-pi
    ```
    This prints a **Tunnel ID** and writes a credentials file to
    `~/cloudflared-setup/<TUNNEL_ID>.json`.
 
 3. Point DNS at the tunnel:
    ```
-   docker run -it -v ~/cloudflared-setup:/root/.cloudflared cloudflare/cloudflared:latest tunnel route dns raspberry-pi git.yourdomain.dk
+   docker run -it -v ~/cloudflared-setup:/home/nonroot/.cloudflared cloudflare/cloudflared:latest tunnel route dns raspberry-pi git.yourdomain.dk
    ```
    This creates the CNAME record automatically — no manual DNS record or
    `ddclient` needed for this hostname.
