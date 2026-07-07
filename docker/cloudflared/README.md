@@ -12,36 +12,39 @@ like `originServerName` (needed for end-to-end TLS to Nginx Proxy Manager)
 are plain, versionable YAML instead of hunting through a dashboard UI that
 keeps changing shape.
 
-## One-time setup (needs a browser — run on your own machine, not the Pi)
+## One-time setup (run directly on the Pi via the cloudflared image — no separate machine needed)
 
-1. Install `cloudflared` locally (e.g. `brew install cloudflared`, or see
-   [Cloudflare's install docs](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)).
+`cloudflared tunnel login` doesn't need a local browser — it prints a URL
+you open on any device (phone/laptop) to authorize, then the command on the
+Pi picks it up. Run these straight from the `cloudflare/cloudflared` image,
+mounting a scratch directory so the generated cert/credentials persist
+after each container exits:
 
-2. Authenticate against your Cloudflare account:
+1. ```
+   mkdir -p ~/cloudflared-setup
+   docker run -it -v ~/cloudflared-setup:/root/.cloudflared cloudflare/cloudflared:latest tunnel login
    ```
-   cloudflared tunnel login
-   ```
-   This opens a browser, has you pick the zone (`yourdomain.dk`), and saves
-   a cert to `~/.cloudflared/cert.pem`.
+   Open the printed URL, pick the zone (`yourdomain.dk`), and authorize. This
+   saves a cert to `~/cloudflared-setup/cert.pem`.
 
-3. Create the tunnel:
+2. Create the tunnel:
    ```
-   cloudflared tunnel create raspberry-pi
+   docker run -it -v ~/cloudflared-setup:/root/.cloudflared cloudflare/cloudflared:latest tunnel create raspberry-pi
    ```
    This prints a **Tunnel ID** and writes a credentials file to
-   `~/.cloudflared/<TUNNEL_ID>.json`.
+   `~/cloudflared-setup/<TUNNEL_ID>.json`.
 
-4. Point DNS at the tunnel:
+3. Point DNS at the tunnel:
    ```
-   cloudflared tunnel route dns raspberry-pi git.yourdomain.dk
+   docker run -it -v ~/cloudflared-setup:/root/.cloudflared cloudflare/cloudflared:latest tunnel route dns raspberry-pi git.yourdomain.dk
    ```
    This creates the CNAME record automatically — no manual DNS record or
    `ddclient` needed for this hostname.
 
-5. Copy the credentials file to the Pi, into this folder's `config/`
-   directory (it's gitignored — never commit it):
+4. Copy the credentials file into this folder's `config/` directory (it's
+   gitignored — never commit it):
    ```
-   scp ~/.cloudflared/<TUNNEL_ID>.json pi@<pi-ip>:~/CPVaerloese/docker/cloudflared/config/
+   cp ~/cloudflared-setup/<TUNNEL_ID>.json ~/CPVaerloese/docker/cloudflared/config/
    ```
 
 ## Configure and run (on the Pi)
