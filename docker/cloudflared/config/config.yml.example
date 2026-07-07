@@ -1,0 +1,14 @@
+# Copy to config.yml and fill in the values from `cloudflared tunnel create`.
+# config.yml and *.json (the credentials file) are gitignored since the
+# credentials file is a secret.
+
+tunnel: REPLACE_WITH_TUNNEL_ID
+credentials-file: /etc/cloudflared/REPLACE_WITH_TUNNEL_ID.json
+
+ingress:
+  - hostname: git.yourdomain.dk
+    service: https://npm:443
+    originRequest:
+      originServerName: git.yourdomain.dk
+  # Catch-all: required as the last rule, anything not matched above 404s.
+  - service: http_status:404
